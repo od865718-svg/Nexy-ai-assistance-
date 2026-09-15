@@ -5,9 +5,9 @@ from discord import ui
 import asyncio
 import os
 from dotenv import load_dotenv
- 
+
 load_dotenv()
- 
+
 # ==================== CONFIG ====================
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID", "1547715438396444742"))
@@ -15,7 +15,7 @@ CLAIM_CHANNEL_ID = 1549158153231540404
 CUSTOMER_ROLE_NAME = "Customer"
 MANAGER_ROLE_ID = 986267425345519737
 CLOSE_TIMEOUT_MINUTES = 35
- 
+
 # ==================== PRODUCTS ====================
 PRODUCTS = {
     "nexy_temp": {"name": "Nexy Temp Spoofer", "price": "$15", "desc": "Temporary HWID spoofer — memory-only", "emoji": "📗"},
@@ -26,7 +26,7 @@ PRODUCTS = {
     "fortnite_private": {"name": "Fortnite Private", "price": "$30", "desc": "Dedicated Fortnite cheat — advanced features", "emoji": "🔥"},
     "valorant_full": {"name": "Valorant Full", "price": "$40", "desc": "Valorant cheat + Vanguard kernel bypass", "emoji": "💀"},
 }
- 
+
 GUIDES = {
     "perm_spoofer": {
         "title": "📘 Nexy Perm Spoofer — Complete Guide",
@@ -185,21 +185,23 @@ GUIDES = {
         )
     }
 }
- 
+
 # ==================== STATE ====================
 closing_timers = {}
- 
+
 # ==================== HELPER FUNCTIONS ====================
 def has_customer_role(member: discord.Member) -> bool:
+    """Check if member has Customer role"""
     return any(role.name == CUSTOMER_ROLE_NAME for role in member.roles)
- 
+
 def get_claim_link() -> str:
+    """Get the claim channel link"""
     return f"https://discord.com/channels/{GUILD_ID}/{CLAIM_CHANNEL_ID}"
- 
+
 # ==================== TICKET SYSTEM ====================
 def is_ticket_channel(channel_name: str) -> bool:
     return channel_name.startswith("support-") or channel_name.startswith("buy-")
- 
+
 async def close_timer(channel_id: int, guild_id: int, channel_name: str):
     await asyncio.sleep(CLOSE_TIMEOUT_MINUTES * 60)
     guild = bot.get_guild(guild_id)
@@ -218,7 +220,7 @@ async def close_timer(channel_id: int, guild_id: int, channel_name: str):
         pass
     finally:
         closing_timers.pop(channel_id, None)
- 
+
 def reset_close_timer(channel_id: int, guild_id: int, channel_name: str):
     if not is_ticket_channel(channel_name):
         return
@@ -226,12 +228,12 @@ def reset_close_timer(channel_id: int, guild_id: int, channel_name: str):
         closing_timers[channel_id].cancel()
     task = asyncio.create_task(close_timer(channel_id, guild_id, channel_name))
     closing_timers[channel_id] = task
- 
+
 # ==================== BOT SETUP ====================
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="/", intents=intents)
- 
+
 @bot.event
 async def on_ready():
     print(f"✅ {bot.user} online")
@@ -240,7 +242,7 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} commands")
     except Exception as e:
         print(f"❌ Sync error: {e}")
- 
+
 # ==================== ROLE CHECK DECORATOR ====================
 def role_required():
     async def predicate(interaction: discord.Interaction) -> bool:
@@ -258,7 +260,7 @@ def role_required():
             return False
         return True
     return app_commands.check(predicate)
- 
+
 # ==================== SLASH COMMANDS ====================
 @bot.tree.command(name="cheats", description="Browse Nexy products and guides")
 @app_commands.describe(
@@ -308,7 +310,7 @@ async def cheats(interaction: discord.Interaction, action: str, product: str = N
         )
         embed.set_footer(text="Need help? Use /support to open a ticket")
         await interaction.response.send_message(embed=embed)
- 
+
 @bot.tree.command(name="status", description="Check product status")
 @role_required()
 async def status(interaction: discord.Interaction):
@@ -324,7 +326,7 @@ async def status(interaction: discord.Interaction):
     embed.add_field(name="🗂️ Spoofers", value="🟢 Nexy Perm — Undetected\n🟢 Nexy Temp — Undetected", inline=False)
     embed.set_footer(text="All products updated within 2 hours of game patches")
     await interaction.response.send_message(embed=embed)
- 
+
 @bot.tree.command(name="support", description="Open a support ticket")
 @role_required()
 async def support(interaction: discord.Interaction):
@@ -333,6 +335,7 @@ async def support(interaction: discord.Interaction):
     username = user.name.lower().replace(" ", "_")
     channel_name = f"support-{username}"
     
+    # Check if ticket exists
     for ch in guild.text_channels:
         if ch.name == channel_name:
             embed = discord.Embed(
@@ -351,6 +354,7 @@ async def support(interaction: discord.Interaction):
             topic=f"Support ticket for {user.mention} ({user.id})"
         )
         
+        # Welcome message
         embed = discord.Embed(
             title="🎫 Support Ticket Opened",
             description=f"Hi {user.mention}! 👋\n\nOur support team will respond within 30 minutes.\n\n**Please describe your issue below:**",
@@ -359,6 +363,7 @@ async def support(interaction: discord.Interaction):
         embed.set_footer(text=f"Ticket: {channel_name}")
         await ticket_channel.send(embed=embed)
         
+        # Close & Escalate buttons
         class SupportActions(ui.View):
             @ui.button(label="🔒 Close Ticket", style=discord.ButtonStyle.red)
             async def close(self, interaction: discord.Interaction, button: ui.Button):
@@ -391,6 +396,8 @@ async def support(interaction: discord.Interaction):
                 )
         
         await ticket_channel.send("Use the buttons below for ticket management.", view=SupportActions())
+        
+        # Start timer
         reset_close_timer(ticket_channel.id, guild.id, channel_name)
         
         embed = discord.Embed(
@@ -407,17 +414,21 @@ async def support(interaction: discord.Interaction):
             color=discord.Color.red()
         )
         await interaction.followup.send(embed=embed)
- 
+
+# ==================== MESSAGE HANDLER ====================
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
     
     channel_name = message.channel.name
+    
+    # Reset timer for ticket channels
     if is_ticket_channel(channel_name):
         reset_close_timer(message.channel.id, message.guild.id, channel_name)
     
     await bot.process_commands(message)
- 
+
+# ==================== RUN ====================
 if __name__ == "__main__":
     bot.run(TOKEN)
