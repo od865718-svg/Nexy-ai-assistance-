@@ -14,16 +14,14 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 BOT_NAME = "Nexy AI Assistant"
 GUILD_ID = int(os.getenv("GUILD_ID", "1547715438396444742"))
 CUSTOMER_ROLE_ID = int(os.getenv("CUSTOMER_ROLE_ID", "0")) or None
-MANAGER_ROLE_ID = int(os.getenv("MANAGER_ROLE_ID", "0")) or None
 
-# Locked-in IDs
 HUMAN_SUPPORT_ROLE_ID = 1547715438438256751
 REVIEW_CHANNEL_ID = 1547715439700746265
+CLAIM_CHANNEL_ID = 1549158153231540404
 REVIEW_LINK = f"https://discord.com/channels/{GUILD_ID}/{REVIEW_CHANNEL_ID}"
 
 CLOSE_TIMEOUT_MINUTES = 35
 
-# Channel prefixes the AI watches in tickets
 TICKET_PREFIXES = ["support-", "buy-"]
 CASUAL_CHANNELS = ["chat", "general", "lounge", "off-topic", "general-chat"]
 CASUAL_PREFIXES = ["chat-", "general-"]
@@ -34,6 +32,11 @@ def is_casual_channel(channel_name: str) -> bool:
 def is_ticket_channel(channel_name: str) -> bool:
     return any(channel_name.startswith(p) for p in TICKET_PREFIXES)
 
+def has_customer_role(member: discord.Member) -> bool:
+    if not CUSTOMER_ROLE_ID:
+        return False
+    return any(r.id == CUSTOMER_ROLE_ID for r in member.roles)
+
 # ==================== STATE ====================
 closing_timers = {}
 escalated_channels = set()
@@ -41,10 +44,10 @@ user_memory = {}
 
 def get_user_memory(user_id: int) -> dict:
     if user_id not in user_memory:
-        user_memory[user_id] = {"greeted": False}
+        user_memory[user_id] = {"greeted": False, "claim_notice_sent": False}
     return user_memory[user_id]
 
-# ==================== GREETINGS ====================
+# ==================== GREETING ====================
 def get_greeting(name: str) -> str:
     return random.choice([
         f"Yo {name}! How can I help you today?",
@@ -53,25 +56,6 @@ def get_greeting(name: str) -> str:
         f"What's up {name}! Got a question or just vibin?",
         f"{name}! What's the play today?",
     ])
-
-# ==================== STAFF NOTICE ====================
-STAFF_NOTICE = """**Hey {user}, quick update regarding staff availability and queue:**
-
-🕒 **NEXY Staff Availability & Queue Notice**
-The NEXY staff team is currently active around these hours (core support window runs through afternoon, evening, and late night in EU / Israel timezone, catering to our international customers).
-
-Staff is actively working through tickets and orders right now and will assist you shortly!
-
-⚠️ Please avoid spamming mentions (@Staff) so your ticket remains orderly in the queue.
-
-📋 **What to leave here while waiting:**
-• Your Invoice ID or order ID from SellAuth / email
-• Product / Game name and Windows version
-• Clear screenshots of any error message or issue
-
-*This ensures staff can resolve your problem immediately once they open your ticket!*
-
-NEXY Support • Staff reviews and handles all tickets"""
 
 # ==================== PRODUCT CATALOG ====================
 NEXY_CATALOG = f"""
@@ -83,22 +67,18 @@ NEXY_CATALOG = f"""
 
 **🎮 Nyrex — Fortnite Cheat**
 • Aimbot, ESP, Radar, and more
-• Private driver available
 • Prices: €5.99 (1D) | €9.99 (3D) | €20.99 (7D) | €34.00 (30D) | €199.99 (Lifetime)
 
 **🎯 Nyrex R6 — Rainbow Six Siege Cheat**
 • Aimbot, ESP, Anti-aim, BattlEye bypass
-• Kernel-level protection
 • Prices: €6.99 (1D) | €15.99 (3D) | €35.99 (7D) | €69.99 (30D)
 
 **🛡️ Perm Spoofer — Permanent HWID Spoofer**
 • Changes disk serial, MAC, motherboard, TPM, and ARP
-• One-time setup — stays until you revert
 • Prices: €24.00 (One-time) | €34.00 (+TPM+Disk) | €64.00 (Lifetime + TPM + Disk + ARP)
 
 **⚡ Temp Spoofer — Temporary HWID Spoofer**
 • Memory-only — resets on reboot
-• No registry or firmware changes
 • Prices: €4.99 (1D) | €15.99 (7D) | €24.99 (Lifetime)
 
 ---
@@ -118,8 +98,6 @@ NEXY_AI = {
         "response": """
 **🎮 Nyrex — Premium Fortnite Cheat**
 
-Yo! Nyrex is our flagship Fortnite cheat — built for domination with zero compromises.
-
 **What it does:**
 • **Aimbot** — smooth, human-like locking
 • **ESP/Wallhack** — see enemies, loot, and traps through walls
@@ -127,17 +105,7 @@ Yo! Nyrex is our flagship Fortnite cheat — built for domination with zero comp
 • **Private driver** available for lifetime users
 
 **Pricing:**
-• €5.99 — 1 Day
-• €9.99 — 3 Days
-• €20.99 — 7 Days
-• €34.00 — 30 Days
-• €199.99 — Lifetime (includes private driver)
-
-**Why Nyrex?**
-• 🟢 100% Undetected on EAC
-• 🛡️ Kernel-level — EAC can't scan our memory
-• ⚡ Updates within hours of game patches
-• 🔒 Private, not public — no signature detection
+• €5.99 (1D) | €9.99 (3D) | €20.99 (7D) | €34.00 (30D) | €199.99 (Lifetime)
 
 🟢 **Status:** Undetected on the latest patch.
 """
@@ -147,27 +115,16 @@ Yo! Nyrex is our flagship Fortnite cheat — built for domination with zero comp
         "response": """
 **🎯 Nyrex R6 — Premium Rainbow Six Siege Cheat**
 
-Yo! Nyrex R6 is built specifically for Rainbow Six Siege — BattlEye doesn't stand a chance.
-
 **What it does:**
-• **Aimbot** with bone prediction (headshots all day)
+• **Aimbot** with bone prediction
 • **ESP** — see enemies, gadgets, and traps
-• **Anti-aim** — avoid headshots like a pro
+• **Anti-aim** — avoid headshots
 • **BattlEye bypass** built in
 
 **Pricing:**
-• €6.99 — 1 Day
-• €15.99 — 3 Days
-• €35.99 — 7 Days
-• €69.99 — 30 Days
+• €6.99 (1D) | €15.99 (3D) | €35.99 (7D) | €69.99 (30D)
 
-**Why Nyrex R6?**
-• 🟢 100% Undetected on BattlEye
-• ⚡ Kernel-level driver — BE cannot touch it
-• 🎯 Optimized for R6's unique mechanics
-• 🔒 Private and secure
-
-🟢 **Status:** Undetected on the latest patch.
+🟢 **Status:** Undetected on BattlEye.
 """
     },
     "perm spoofer": {
@@ -175,44 +132,28 @@ Yo! Nyrex R6 is built specifically for Rainbow Six Siege — BattlEye doesn't st
         "response": """
 **🛡️ Perm Spoofer — Permanent HWID Solution**
 
-This is the big one — permanent HWID spoofing for when you're really banned.
-
 **What it changes:**
 • Disk Serial Number
 • MAC Address
 • Motherboard ID
-• TPM (Trusted Platform Module)
-• ARP (Address Resolution Protocol)
+• TPM
+• ARP
 
 **Pricing:**
-• €24.00 — One-time
-• €34.00 — One-time + TPM + Disk spoofer
-• €64.00 — Lifetime + TPM + Disk + ARP spoofer
+• €24.00 (One-time) | €34.00 (+TPM+Disk) | €64.00 (Lifetime + TPM + Disk + ARP)
 
-**Why Perm Spoofer?**
-• 🟢 100% Undetected on EAC, BattlEye, and Vanguard
-• 🔒 Permanent changes — stays until you manually revert
-• ⚡ One-time setup — then you're done
-
-🟢 **Status:** Undetected on all games.
+🟢 **Status:** Undetected on EAC, BattlEye, and Vanguard.
 """
     },
     "temp spoofer": {
         "keywords": ["temp spoofer", "temporary spoofer", "temp spoof"],
         "response": """
-**⚡ Temp Spoofer — The Ultimate Temporary HWID Solution**
+**⚡ Temp Spoofer — Temporary HWID Solution**
 
-Yo! Temp Spoofer changes your HWID in memory only — resets on reboot. Perfect for testing or quick sessions.
+Changes your HWID in memory only — resets on reboot.
 
 **Pricing:**
-• €4.99 — 1 Day
-• €15.99 — 7 Days
-• €24.99 — Lifetime
-
-**Why Temp Spoofer?**
-• 🟢 100% Undetected — EAC, BattlEye, and Vanguard compatible
-• ⚡ Instant spoof — no reboot required
-• 🔒 Safe — no registry or firmware changes
+• €4.99 (1D) | €15.99 (7D) | €24.99 (Lifetime)
 
 🟢 **Status:** Undetected on all games.
 """
@@ -240,8 +181,6 @@ Yo! Temp Spoofer changes your HWID in memory only — resets on reboot. Perfect 
 **Step 3:** Create a new Uplay/Steam account.
 **Step 4:** Spoof before injecting every time.
 
-Use **Nyrex R6** — it's built specifically for BattlEye bypass.
-
 💡 **Was it a permanent ban or a temporary one?**
 """
     },
@@ -250,17 +189,13 @@ Use **Nyrex R6** — it's built specifically for BattlEye bypass.
         "response": """
 **💰 Nexy Pricing — All Products**
 
-**🎮 Nyrex (Fortnite)**
-• 1 Day — €5.99 | 3 Days — €9.99 | 7 Days — €20.99 | 30 Days — €34.00 | Lifetime — €199.99
+**🎮 Nyrex** — €5.99 (1D) | €9.99 (3D) | €20.99 (7D) | €34.00 (30D) | €199.99 (Lifetime)
 
-**🎯 Nyrex R6 (Rainbow Six)**
-• 1 Day — €6.99 | 3 Days — €15.99 | 7 Days — €35.99 | 30 Days — €69.99
+**🎯 Nyrex R6** — €6.99 (1D) | €15.99 (3D) | €35.99 (7D) | €69.99 (30D)
 
-**🛡️ Perm Spoofer**
-• One-time — €24.00 | +TPM+Disk — €34.00 | Lifetime — €64.00
+**🛡️ Perm Spoofer** — €24.00 (One-time) | €34.00 (+TPM+Disk) | €64.00 (Lifetime)
 
-**⚡ Temp Spoofer**
-• 1 Day — €4.99 | 7 Days — €15.99 | Lifetime — €24.99
+**⚡ Temp Spoofer** — €4.99 (1D) | €15.99 (7D) | €24.99 (Lifetime)
 
 🟢 All products undetected.
 """
@@ -275,7 +210,6 @@ Use **Nyrex R6** — it's built specifically for BattlEye bypass.
 • 🛡️ Premium Spoofers — temp and perm options
 • 🎮 Top-tier Cheats — Nyrex and Nyrex R6
 • 💬 24/7 Support — real humans when you need them
-• 🔒 Private & Secure — no signature detection
 """
     },
     "website": {
@@ -287,14 +221,12 @@ Use **Nyrex R6** — it's built specifically for BattlEye bypass.
         "response": """
 **Nexy — Premium Cheat & Spoofer Provider**
 
-We offer kernel-level cheats and spoofers for Fortnite and R6:
 • **Nyrex** — Fortnite cheat
 • **Nyrex R6** — R6 cheat
 • **Perm Spoofer** — Permanent HWID spoofer
 • **Temp Spoofer** — Temporary HWID spoofer
 
 All products 🟢 100% Undetected.
-
 🌐 **Website:** https://nexycheats.cc
 """
     },
@@ -320,27 +252,24 @@ FOLLOW_UPS = {
     "r6 ban": "Was it a permanent ban or a temporary one?",
 }
 
-# ==================== HUMAN SUPPORT BUTTON ====================
-class HumanSupportButton(discord.ui.View):
-    def __init__(self, user_id: int, channel_id: int):
-        super().__init__(timeout=None)
-        self.user_id = user_id
-        self.channel_id = channel_id
+# ==================== RESPONSE HELPERS ====================
+def get_nexy_response(query: str):
+    q = query.lower()
+    best = None
+    best_score = 0
+    for key, data in NEXY_AI.items():
+        for kw in data["keywords"]:
+            if kw in q and len(kw) > best_score:
+                best_score = len(kw)
+                best = data["response"]
+    return best
 
-    @discord.ui.button(label="🆘 I need real human support", style=discord.ButtonStyle.danger, custom_id="human_support")
-    async def human_support(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
-            return
-        guild = interaction.guild
-        role = guild.get_role(HUMAN_SUPPORT_ROLE_ID) if HUMAN_SUPPORT_ROLE_ID else None
-        escalated_channels.add(self.channel_id)
-        if role:
-            await interaction.response.send_message(
-                f"{role.mention} — {interaction.user.mention} needs real human support. Please assist."
-            )
-        else:
-            await interaction.response.send_message("⚠️ Support role not configured — ping a staff member.")
+def get_follow_up(query: str):
+    q = query.lower()
+    for k, v in FOLLOW_UPS.items():
+        if k in q:
+            return v
+    return None
 
 # ==================== CLOSE TIMER ====================
 async def close_timer(channel_id: int, guild_id: int):
@@ -368,24 +297,50 @@ def reset_close_timer(channel_id: int, guild_id: int):
     task = asyncio.create_task(close_timer(channel_id, guild_id))
     closing_timers[channel_id] = task
 
-# ==================== RESPONSE HELPERS ====================
-def get_nexy_response(query: str):
-    q = query.lower()
-    best = None
-    best_score = 0
-    for key, data in NEXY_AI.items():
-        for kw in data["keywords"]:
-            if kw in q and len(kw) > best_score:
-                best_score = len(kw)
-                best = data["response"]
-    return best
+# ==================== SUPPORT VIEW (2 buttons) ====================
+class SupportView(discord.ui.View):
+    def __init__(self, user_id: int, channel_id: int):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.channel_id = channel_id
 
-def get_follow_up(query: str):
-    q = query.lower()
-    for k, v in FOLLOW_UPS.items():
-        if k in q:
-            return v
-    return None
+    @discord.ui.button(label="🆘 I need real human support", style=discord.ButtonStyle.danger, custom_id="human_support")
+    async def human_support(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
+            return
+        guild = interaction.guild
+        role = guild.get_role(HUMAN_SUPPORT_ROLE_ID)
+        escalated_channels.add(self.channel_id)
+        if role:
+            await interaction.response.send_message(
+                f"{role.mention} — {interaction.user.mention} needs real human support. Please check this ticket."
+            )
+        else:
+            await interaction.response.send_message("⚠️ Support role not found — ping a staff member.")
+
+    @discord.ui.button(label="✅ Issue Resolved", style=discord.ButtonStyle.success, custom_id="issue_resolved")
+    async def issue_resolved(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
+            return
+
+        # Send review request in the ticket
+        await interaction.response.send_message(
+            f"✅ Glad it's working! 🙌\n\n"
+            f"If you've got a minute, please leave a review in <#{REVIEW_CHANNEL_ID}> — it helps a ton.\n\n"
+            f"This ticket will auto-close in **{CLOSE_TIMEOUT_MINUTES} minutes**."
+        )
+
+        # Disable the button so it can't be spammed
+        self.children[1].disabled = True
+        try:
+            await interaction.message.edit(view=self)
+        except:
+            pass
+
+        # Start the 35-min close timer
+        reset_close_timer(self.channel_id, interaction.guild.id)
 
 # ==================== BOT SETUP ====================
 intents = discord.Intents.default()
@@ -394,68 +349,65 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ==================== SLASH COMMANDS ====================
+def customer_check(interaction: discord.Interaction):
+    if not has_customer_role(interaction.user):
+        return f"❌ You need the **Customer** role to use this.\n\nClaim it here: <#{CLAIM_CHANNEL_ID}>"
+    return None
 
-# ---- Guides ----
 @bot.tree.command(name="permguide", description="Get the Nexy Permanent Spoofer guide")
 async def permguide_cmd(interaction: discord.Interaction):
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     embed = discord.Embed(
         title="📘 NEXY PERMANENT GUIDE",
-        description=(
-            "Access the official Nexy Permanent Spoofer guide below:\n\n"
-            "🔗 **https://nexy-temp-guide.gitbook.io/nexy-perm-guide**"
-        ),
+        description="Access the official Nexy Permanent Spoofer guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-perm-guide**",
         color=0x8B5CF6
     )
     embed.set_footer(text="NEXY Team • Nexy reviews and handles all tickets")
     view = ui.View()
-    view.add_item(ui.Button(
-        label="Open Permanent Guide",
-        url="https://nexy-temp-guide.gitbook.io/nexy-perm-guide",
-        emoji="📘"
-    ))
+    view.add_item(ui.Button(label="Open Permanent Guide", url="https://nexy-temp-guide.gitbook.io/nexy-perm-guide", emoji="📘"))
     await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name="tempguide", description="Get the Nexy Temporary Spoofer guide")
 async def tempguide_cmd(interaction: discord.Interaction):
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     embed = discord.Embed(
         title="📗 NEXY TEMPORARY GUIDE",
-        description=(
-            "Access the official Nexy Temporary Spoofer guide below:\n\n"
-            "🔗 **https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs**"
-        ),
+        description="Access the official Nexy Temporary Spoofer guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs**",
         color=0x8B5CF6
     )
     embed.set_footer(text="NEXY Team • Nexy reviews and handles all tickets")
     view = ui.View()
-    view.add_item(ui.Button(
-        label="Open Temporary Guide",
-        url="https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs",
-        emoji="📗"
-    ))
+    view.add_item(ui.Button(label="Open Temporary Guide", url="https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs", emoji="📗"))
     await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name="cheatsetup", description="Get the Nexy Cheat Setup guide")
 async def cheatsetup_cmd(interaction: discord.Interaction):
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     embed = discord.Embed(
         title="📙 NEXY CHEAT SETUP GUIDE",
-        description=(
-            "Access the official Nexy Cheat Setup guide below:\n\n"
-            "🔗 **https://nexy-temp-guide.gitbook.io/nexy-cheat-guide**"
-        ),
+        description="Access the official Nexy Cheat Setup guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-cheat-guide**",
         color=0x8B5CF6
     )
     embed.set_footer(text="NEXY Team • Nexy reviews and handles all tickets")
     view = ui.View()
-    view.add_item(ui.Button(
-        label="Open Cheat Setup Guide",
-        url="https://nexy-temp-guide.gitbook.io/nexy-cheat-guide",
-        emoji="📙"
-    ))
+    view.add_item(ui.Button(label="Open Cheat Setup Guide", url="https://nexy-temp-guide.gitbook.io/nexy-cheat-guide", emoji="📙"))
     await interaction.response.send_message(embed=embed, view=view)
 
-# ---- Manual (AnyDesk assistance) ----
-@bot.tree.command(name="manual", description="Hire a staff member to do the Perm Guide for you via AnyDesk")
+@bot.tree.command(name="manual", description="Hire a staff member to do the Perm Guide via AnyDesk")
 async def manual_cmd(interaction: discord.Interaction):
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     embed = discord.Embed(
         title="📖 AnyDesk Manual — Nexy",
         description=(
@@ -466,55 +418,53 @@ async def manual_cmd(interaction: discord.Interaction):
         ),
         color=0x8B5CF6
     )
-    embed.set_footer(text="NEXY • Today")
+    embed.set_footer(text="NEXY Team")
     await interaction.response.send_message(embed=embed)
 
-# ---- Temp vs Perm Spoofer ----
 @bot.tree.command(name="tempvsperm", description="Difference between Temp & Perm Spoofer")
 async def tempvsperm_cmd(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="Difference Between Temp & Perm Spoofer",
-        color=0x8B5CF6
-    )
-    embed.add_field(
-        name="Permanent Spoofer (Perm):",
-        value=(
-            "• Permanently alters hardware identifiers (serials).\n"
-            "• Identifiers remain persistent across system reboots.\n"
-            "• Requires a full clean Windows reinstallation.\n"
-            "• Ideal for permanent hardware ID resets."
-        ),
-        inline=False
-    )
-    embed.add_field(
-        name="Temporary Spoofer (Temp):",
-        value=(
-            "• Hardware changes are temporary for the active session (resets upon system reboot).\n"
-            "• Requires reapplying the temporary configuration after each restart.\n"
-            "• No clean Windows reinstallation required.\n"
-            "• Ideal for testing or short-session usage."
-        ),
-        inline=False
-    )
-    embed.add_field(
-        name="\u200b",
-        value="*If you need further guidance on selecting an option, feel free to ask our staff team.*",
-        inline=False
-    )
-    embed.set_footer(text="NEXY Team • Yesterday")
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
+    embed = discord.Embed(title="Difference Between Temp & Perm Spoofer", color=0x8B5CF6)
+    embed.add_field(name="Permanent Spoofer (Perm):", value=(
+        "• Permanently alters hardware identifiers (serials).\n"
+        "• Identifiers remain persistent across system reboots.\n"
+        "• Requires a full clean Windows reinstallation.\n"
+        "• Ideal for permanent hardware ID resets."
+    ), inline=False)
+    embed.add_field(name="Temporary Spoofer (Temp):", value=(
+        "• Hardware changes are temporary for the active session (resets upon system reboot).\n"
+        "• Requires reapplying the temporary configuration after each restart.\n"
+        "• No clean Windows reinstallation required.\n"
+        "• Ideal for testing or short-session usage."
+    ), inline=False)
+    embed.set_footer(text="NEXY Team")
     await interaction.response.send_message(embed=embed)
 
-# ---- Catalog ----
 @bot.tree.command(name="cheats", description="Browse Nexy product catalog")
 async def cheats_cmd(interaction: discord.Interaction):
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     await interaction.response.send_message(NEXY_CATALOG)
 
 @bot.tree.command(name="status", description="Check product status")
 async def status_cmd(interaction: discord.Interaction):
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     await interaction.response.send_message(NEXY_AI["detected status"]["response"])
 
 @bot.tree.command(name="pricing", description="Show Nexy pricing")
 async def pricing_cmd(interaction: discord.Interaction):
+    err = customer_check(interaction)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     await interaction.response.send_message(NEXY_AI["pricing"]["response"])
 
 # ==================== EVENTS ====================
@@ -528,15 +478,15 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} commands to guild {GUILD_ID}")
     except Exception as e:
         print(f"❌ Sync error: {e}")
-    print("🔥 Fully autonomous support — no commands needed!")
+    print("🔥 Button-driven support active!")
 
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    # Staff with the support role silence the bot in a ticket
-    if HUMAN_SUPPORT_ROLE_ID and any(r.id == HUMAN_SUPPORT_ROLE_ID for r in message.author.roles):
+    # Staff with support role silence the bot in a ticket
+    if any(r.id == HUMAN_SUPPORT_ROLE_ID for r in message.author.roles):
         escalated_channels.add(message.channel.id)
         return
 
@@ -573,14 +523,12 @@ async def on_message(message: discord.Message):
             await message.reply("Ayy, thanks! 🙌")
         elif "bye" in clean:
             await message.reply(f"See ya! 👋 {BOT_NAME} has got your back.")
-        elif any(w in clean for w in ["cheat", "spoofer", "ban", "hwid", "inject", "detected"]):
-            await message.reply(f"Yo {user_name}! If you need help with cheats, spoofers, or bans, open a support ticket and I'll assist you properly! 🎫")
         else:
-            await message.reply(f"Yo {user_name}! What's on your mind? Need help with cheats, spoofers, or just chatting?")
+            await message.reply(f"Yo {user_name}! What's on your mind?")
         return
 
     # ============================================================
-    # 2. TICKET MODE — support-* and buy-* channels
+    # 2. TICKET MODE
     # ============================================================
     if not is_ticket_channel(channel_name):
         return
@@ -592,40 +540,25 @@ async def on_message(message: discord.Message):
 
     memory = get_user_memory(member.id)
 
-    # First message in ticket — greet by name
+    # 🛑 Hard gate — no Customer role = ask to claim, do nothing else
+    if not has_customer_role(member):
+        if not memory.get("claim_notice_sent"):
+            memory["claim_notice_sent"] = True
+            await message.reply(
+                f"👋 Hi {member.mention}!\n\n"
+                f"You don't have the **Customer** role yet — that's required before I can help you with anything (guides, products, bans, spoofers).\n\n"
+                f"**Claim your Customer role here:** <#{CLAIM_CHANNEL_ID}>\n\n"
+                f"Once you've claimed it, just reply here again and I'll help you with whatever you need. 💜"
+            )
+        return
+
+    # First message after becoming Customer — greet by name
     if not memory.get("greeted"):
         memory["greeted"] = True
         await message.reply(get_greeting(user_name))
         return
 
-    # "Help" trigger — post staff notice + tag staff
-    if any(w in content for w in ["help", "need help", "support", "human"]):
-        role = guild.get_role(HUMAN_SUPPORT_ROLE_ID) if HUMAN_SUPPORT_ROLE_ID else None
-        if role:
-            await message.channel.send(STAFF_NOTICE.format(user=user_name))
-            await message.channel.send(f"{role.mention} — {member.mention} needs assistance. Please check this ticket.")
-        else:
-            await message.reply("I'll get a human for you. Please wait...")
-
-    # "Waiting for key" — tag Manager, go silent
-    if "waiting for key" in content or "need key" in content:
-        role = guild.get_role(MANAGER_ROLE_ID) if MANAGER_ROLE_ID else None
-        if role:
-            escalated_channels.add(channel_id)
-            await message.channel.send(f"{role.mention} — Someone's waiting for a key in here. Please assist.")
-            return
-
-    # "Fixed / thanks" — review + auto-close timer
-    if any(w in content for w in ["thanks", "thank you", "fixed", "done", "solved", "working", "all good"]):
-        await message.reply(
-            f"✅ Glad it's working! 🙌\n\n"
-            f"If you've got a minute, please leave a review in <#{REVIEW_CHANNEL_ID}> — it helps a ton.\n\n"
-            f"This ticket will auto-close in {CLOSE_TIMEOUT_MINUTES} minutes."
-        )
-        reset_close_timer(channel_id, guild.id)
-        return
-
-    # "Manual" trigger — show AnyDesk service
+    # Manual / AnyDesk
     if "manual" in content or "anydesk" in content:
         embed = discord.Embed(
             title="📖 AnyDesk Manual — Nexy",
@@ -637,11 +570,11 @@ async def on_message(message: discord.Message):
             ),
             color=0x8B5CF6
         )
-        embed.set_footer(text="NEXY Team")
-        await message.reply(embed=embed)
+        view = SupportView(member.id, channel_id)
+        await message.reply(embed=embed, view=view)
         return
 
-    # "Temp vs Perm" trigger
+    # Temp vs Perm
     if "temp" in content and "perm" in content and ("difference" in content or "vs" in content):
         embed = discord.Embed(title="Difference Between Temp & Perm Spoofer", color=0x8B5CF6)
         embed.add_field(name="Permanent Spoofer (Perm):", value=(
@@ -657,17 +590,15 @@ async def on_message(message: discord.Message):
             "• Ideal for testing or short-session usage."
         ), inline=False)
         embed.set_footer(text="NEXY Team")
-        await message.reply(embed=embed)
+        view = SupportView(member.id, channel_id)
+        await message.reply(embed=embed, view=view)
         return
 
     # Guide shortcuts
     if "perm spoofer" in content or "perm guide" in content:
         embed = discord.Embed(
             title="📘 NEXY PERMANENT GUIDE",
-            description=(
-                "Access the official Nexy Permanent Spoofer guide below:\n\n"
-                "🔗 **https://nexy-temp-guide.gitbook.io/nexy-perm-guide**"
-            ),
+            description="Access the official Nexy Permanent Spoofer guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-perm-guide**",
             color=0x8B5CF6
         )
         view = ui.View()
@@ -678,10 +609,7 @@ async def on_message(message: discord.Message):
     if "temp spoofer" in content or "temp guide" in content:
         embed = discord.Embed(
             title="📗 NEXY TEMPORARY GUIDE",
-            description=(
-                "Access the official Nexy Temporary Spoofer guide below:\n\n"
-                "🔗 **https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs**"
-            ),
+            description="Access the official Nexy Temporary Spoofer guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs**",
             color=0x8B5CF6
         )
         view = ui.View()
@@ -692,15 +620,24 @@ async def on_message(message: discord.Message):
     if "cheat setup" in content or "setup guide" in content or "cheat guide" in content:
         embed = discord.Embed(
             title="📙 NEXY CHEAT SETUP GUIDE",
-            description=(
-                "Access the official Nexy Cheat Setup guide below:\n\n"
-                "🔗 **https://nexy-temp-guide.gitbook.io/nexy-cheat-guide**"
-            ),
+            description="Access the official Nexy Cheat Setup guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-cheat-guide**",
             color=0x8B5CF6
         )
         view = ui.View()
         view.add_item(ui.Button(label="Open Cheat Setup Guide", url="https://nexy-temp-guide.gitbook.io/nexy-cheat-guide", emoji="📙"))
         await message.reply(embed=embed, view=view)
+        return
+
+    # "help" → just answer + buttons
+    if any(w in content for w in ["help", "need help", "support", "human", "i need support"]):
+        view = SupportView(member.id, channel_id)
+        await message.reply(
+            f"Gotcha {user_name} — tell me what's happening and I'll help you out.\n\n"
+            f"If it's something only a human can fix, tap the **🆘** button. If your issue is solved, tap **✅ Issue Resolved**.",
+            view=view
+        )
+        if channel_id in closing_timers:
+            reset_close_timer(channel_id, guild.id)
         return
 
     # General AI response
@@ -709,7 +646,7 @@ async def on_message(message: discord.Message):
         follow_up = get_follow_up(message.content)
         if follow_up:
             response = f"{response}\n\n💡 {follow_up}"
-        view = HumanSupportButton(member.id, channel_id)
+        view = SupportView(member.id, channel_id)
         await message.reply(response, view=view)
         if channel_id in closing_timers:
             reset_close_timer(channel_id, guild.id)
@@ -723,7 +660,7 @@ async def on_message(message: discord.Message):
             r = NEXY_AI["r6 ban"]["response"]
         else:
             r = f"I see you're dealing with a ban, {user_name}. Which game — Fortnite, R6, Valorant?"
-        view = HumanSupportButton(member.id, channel_id)
+        view = SupportView(member.id, channel_id)
         await message.reply(r, view=view)
         if channel_id in closing_timers:
             reset_close_timer(channel_id, guild.id)
@@ -731,18 +668,18 @@ async def on_message(message: discord.Message):
 
     # Product / pricing questions
     if any(w in content for w in ["product", "catalog", "offer", "cheat", "spoofer", "price", "cost", "€"]):
-        view = HumanSupportButton(member.id, channel_id)
+        view = SupportView(member.id, channel_id)
         await message.reply(NEXY_CATALOG, view=view)
         if channel_id in closing_timers:
             reset_close_timer(channel_id, guild.id)
         return
 
     # Fallback
-    view = HumanSupportButton(member.id, channel_id)
+    view = SupportView(member.id, channel_id)
     await message.reply(
         f"What can I help you with, {user_name}?\n\n"
         f"You can ask me about:\n• Products & Pricing\n• Ban help\n• Spoofers (temp vs perm)\n• Why Nexy\n• AnyDesk manual service\n\n"
-        f"Or click the button below for human support.",
+        f"Or tap a button below:",
         view=view
     )
     if channel_id in closing_timers:
