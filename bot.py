@@ -14,6 +14,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 BOT_NAME = "Nexy AI Assistant"
 GUILD_ID = int(os.getenv("GUILD_ID", "1547715438396444742"))
 CUSTOMER_ROLE_ID = int(os.getenv("CUSTOMER_ROLE_ID", "0")) or None
+MANAGER_ROLE_ID = int(os.getenv("MANAGER_ROLE_ID", "0")) or None
 
 HUMAN_SUPPORT_ROLE_ID = 1547715438438256751
 REVIEW_CHANNEL_ID = 1547715439700746265
@@ -44,17 +45,21 @@ user_memory = {}
 
 def get_user_memory(user_id: int) -> dict:
     if user_id not in user_memory:
-        user_memory[user_id] = {"greeted": False, "claim_notice_sent": False}
+        user_memory[user_id] = {
+            "greeted": False,
+            "claim_notice_sent": False,
+            "asked_question": False,
+        }
     return user_memory[user_id]
 
 # ==================== GREETING ====================
 def get_greeting(name: str) -> str:
     return random.choice([
-        f"Yo {name}! How can I help you today?",
-        f"Hey {name}! What's on your mind?",
-        f"Yo {name}! Ready to drop some knowledge. What do you need?",
-        f"What's up {name}! Got a question or just vibin?",
-        f"{name}! What's the play today?",
+        f"Yo {name}! What's your question today?",
+        f"Hey {name}! What can I help you with?",
+        f"Yo {name}! What's up — what do you need help with?",
+        f"What's up {name}! What's your question?",
+        f"{name}! What can I help you with today?",
     ])
 
 # ==================== PRODUCT CATALOG ====================
@@ -84,7 +89,119 @@ NEXY_CATALOG = f"""
 ---
 
 📌 **Website:** https://nexycheats.cc
-💬 **Need help?** Just describe your issue.
+"""
+
+# ==================== FORTNITE CHEAT FEATURES ====================
+FORTNITE_CHEAT = """
+**🎮 Fortnite Cheat — Full Feature List**
+
+**Combat Features:**
+• Aimbot
+• Soft Aim
+• Triggerbot
+• Custom Smoothing
+• FOV Control
+• Hitbox Selection
+• Humanized settings for legit gameplay
+
+**Visuals (ESP):**
+• Player ESP
+• Box ESP
+• Skeleton ESP
+• Distance
+• Weapon Info
+• Visible Check
+• Fully customizable colors
+
+**Misc Features:**
+• No Recoil
+• No Spread
+• Crosshair
+• Radar
+• Safe gameplay modes for public matches
+
+**Config & Safety:**
+• Streamproof (OBS Safe)
+• Custom Hotkeys
+• Save / Load Configs
+• Auto Update System
+
+**System Compatibility:**
+• Windows 10
+• Windows 11
+• Optimized for performance & low FPS impact
+
+🟢 **Status:** Undetected.
+"""
+
+# ==================== PERM SPOOFER FEATURES ====================
+PERM_SPOOFER = """
+**🛡️ Perm Spoofer — Full Feature List**
+
+**What it spoofs:**
+• Disk Drives
+• Motherboard
+• TPM Endorsement Keys
+• Network MAC Addresses
+• SMBIOS
+• Monitor EDID
+
+**Key Benefits:**
+• 🏆 Tournament Supported — Full compatibility with Fortnite Tournaments
+• 💻 Supports Locked Mobos — Works on ASUS, HP, and other restricted systems
+• 🪟 Windows 10 & 11 Ready — Fully compatible with latest builds including 25H2
+• ⚡ HWID reset quickly
+• 📦 Instant Delivery — License key activation in seconds
+
+**Features:**
+• Legit Manufacturer Serials — Secure, spoofed hardware-level identity
+• Supports Locked Motherboards — Including ASUS, HP, and Insyde BIOS
+• Remains Unbanned After Reinstall — Survive Windows resets with no trace
+• Permanent MAC Spoofing — Includes network NIC spoof
+• Bypasses Disk Bans / Unbans Disks
+• TPM & Secure Boot Bypass (FN)
+• Permanent TPM Spoofing — VAL, COD, BF6
+• Fixes Fortnite Tournament Kicks
+• Fixes Fortnite 1/2 Report Bans
+• SMBIOS Fixer Included
+• Step-by-Step Setup (Photos/Videos)
+• Automated Monitor EDID Spoofing
+
+**Pricing:**
+• €24.00 — One-time
+• €34.00 — One-time + TPM + Disk spoofer
+• €64.00 — Lifetime + TPM + Disk + ARP spoofer
+
+**Supported Motherboards:**
+ASUS / MSI / GIGABYTE / ASROCK / HP / EVGA / AORUS / COLORFUL / LENOVO / ACER / DELL
+
+**Supported Anti-Cheats:**
+Easy Anti-Cheat / BattlEye / Ricochet / ACE / NetEase / Vanguard
+
+⚠️ **Note:** A RAID reinstall is required for Vanguard spoofing. You also need a USB drive (minimum 8GB) for the Windows reinstall.
+"""
+
+# ==================== TEMP SPOOFER FEATURES ====================
+TEMP_SPOOFER = """
+**⚡ Temp Spoofer — Full Feature List**
+
+**What it does:**
+Changes your HWID in memory only — resets on reboot. No permanent changes, no registry edits.
+
+**Key Benefits:**
+• ✅ Works on **all motherboards** (no restrictions)
+• ✅ Works on **all games** except:
+   - ❌ Valorant (Vanguard blocks temp spoof)
+• ⚡ Instant spoof — no reboot required
+• 🔒 Safe — no permanent changes
+• 📦 Instant Delivery
+
+**Pricing:**
+• €4.99 — 1 Day
+• €15.99 — 7 Days
+• €24.99 — Lifetime
+
+🟢 **Status:** Undetected.
 """
 
 # ==================== AI RESPONSES ====================
@@ -93,22 +210,13 @@ NEXY_AI = {
         "keywords": ["catalog", "products", "what do you offer", "product list", "what cheats", "what spoofers"],
         "response": NEXY_CATALOG
     },
+    "fortnite cheat": {
+        "keywords": ["fortnite cheat", "fn cheat", "nyrex fn", "fortnite cheat features", "what does the fortnite cheat do"],
+        "response": FORTNITE_CHEAT
+    },
     "nyrex": {
-        "keywords": ["nyrex", "nyrex cheat", "fortnite cheat"],
-        "response": """
-**🎮 Nyrex — Premium Fortnite Cheat**
-
-**What it does:**
-• **Aimbot** — smooth, human-like locking
-• **ESP/Wallhack** — see enemies, loot, and traps through walls
-• **Radar** — track enemies in real-time
-• **Private driver** available for lifetime users
-
-**Pricing:**
-• €5.99 (1D) | €9.99 (3D) | €20.99 (7D) | €34.00 (30D) | €199.99 (Lifetime)
-
-🟢 **Status:** Undetected on the latest patch.
-"""
+        "keywords": ["nyrex", "nyrex cheat"],
+        "response": FORTNITE_CHEAT
     },
     "nyrex r6": {
         "keywords": ["nyrex r6", "r6 cheat", "rainbow six cheat", "nyrex r6x"],
@@ -128,35 +236,12 @@ NEXY_AI = {
 """
     },
     "perm spoofer": {
-        "keywords": ["perm spoofer", "permanent spoofer", "perm spoof"],
-        "response": """
-**🛡️ Perm Spoofer — Permanent HWID Solution**
-
-**What it changes:**
-• Disk Serial Number
-• MAC Address
-• Motherboard ID
-• TPM
-• ARP
-
-**Pricing:**
-• €24.00 (One-time) | €34.00 (+TPM+Disk) | €64.00 (Lifetime + TPM + Disk + ARP)
-
-🟢 **Status:** Undetected on EAC, BattlEye, and Vanguard.
-"""
+        "keywords": ["perm spoofer", "permanent spoofer", "perm spoof", "what does perm do", "perm features", "perm spoofer features"],
+        "response": PERM_SPOOFER
     },
     "temp spoofer": {
-        "keywords": ["temp spoofer", "temporary spoofer", "temp spoof"],
-        "response": """
-**⚡ Temp Spoofer — Temporary HWID Solution**
-
-Changes your HWID in memory only — resets on reboot.
-
-**Pricing:**
-• €4.99 (1D) | €15.99 (7D) | €24.99 (Lifetime)
-
-🟢 **Status:** Undetected on all games.
-"""
+        "keywords": ["temp spoofer", "temporary spoofer", "temp spoof", "what does temp do", "temp features", "temp spoofer features"],
+        "response": TEMP_SPOOFER
     },
     "fortnite ban": {
         "keywords": ["fortnite ban", "banned from fortnite", "epic ban", "fortnite banned"],
@@ -196,8 +281,6 @@ Changes your HWID in memory only — resets on reboot.
 **🛡️ Perm Spoofer** — €24.00 (One-time) | €34.00 (+TPM+Disk) | €64.00 (Lifetime)
 
 **⚡ Temp Spoofer** — €4.99 (1D) | €15.99 (7D) | €24.99 (Lifetime)
-
-🟢 All products undetected.
 """
     },
     "benefits": {
@@ -216,6 +299,21 @@ Changes your HWID in memory only — resets on reboot.
         "keywords": ["website", "nexy website", "nexycheats", "url", "link"],
         "response": "🌐 Our website is **https://nexycheats.cc** — products, status, reviews, and more."
     },
+    "undetected": {
+        "keywords": ["is it detected", "is it ud", "is nexy detected", "detected right now", "undetected", "safe to inject", "is the cheat ud", "is the spoofer ud"],
+        "response": """
+**🟢 Yes — all Nexy products are 100% Undetected.**
+
+| Product | Status |
+|---------|--------|
+| Nyrex (Fortnite) | 🟢 Undetected |
+| Nyrex R6 | 🟢 Undetected |
+| Perm Spoofer | 🟢 Undetected |
+| Temp Spoofer | 🟢 Undetected |
+
+We push updates within hours of any game patch. Always check the status channel before injecting.
+"""
+    },
     "what is nexy": {
         "keywords": ["what is nexy", "tell me about nexy", "what does nexy do"],
         "response": """
@@ -228,21 +326,6 @@ Changes your HWID in memory only — resets on reboot.
 
 All products 🟢 100% Undetected.
 🌐 **Website:** https://nexycheats.cc
-"""
-    },
-    "detected status": {
-        "keywords": ["is nexy detected", "detected right now", "undetected", "safe to inject"],
-        "response": """
-**🟢 All Nexy Products Are Undetected**
-
-| Product | Status |
-|---------|--------|
-| Nyrex | 🟢 Undetected |
-| Nyrex R6 | 🟢 Undetected |
-| Perm Spoofer | 🟢 Undetected |
-| Temp Spoofer | 🟢 Undetected |
-
-Updates pushed within hours of any game patch.
 """
     },
 }
@@ -297,7 +380,7 @@ def reset_close_timer(channel_id: int, guild_id: int):
     task = asyncio.create_task(close_timer(channel_id, guild_id))
     closing_timers[channel_id] = task
 
-# ==================== SUPPORT VIEW (2 buttons) ====================
+# ==================== SUPPORT VIEW ====================
 class SupportView(discord.ui.View):
     def __init__(self, user_id: int, channel_id: int):
         super().__init__(timeout=None)
@@ -324,22 +407,16 @@ class SupportView(discord.ui.View):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
             return
-
-        # Send review request in the ticket
         await interaction.response.send_message(
             f"✅ Glad it's working! 🙌\n\n"
             f"If you've got a minute, please leave a review in <#{REVIEW_CHANNEL_ID}> — it helps a ton.\n\n"
             f"This ticket will auto-close in **{CLOSE_TIMEOUT_MINUTES} minutes**."
         )
-
-        # Disable the button so it can't be spammed
         self.children[1].disabled = True
         try:
             await interaction.message.edit(view=self)
         except:
             pass
-
-        # Start the 35-min close timer
         reset_close_timer(self.channel_id, interaction.guild.id)
 
 # ==================== BOT SETUP ====================
@@ -432,13 +509,15 @@ async def tempvsperm_cmd(interaction: discord.Interaction):
         "• Permanently alters hardware identifiers (serials).\n"
         "• Identifiers remain persistent across system reboots.\n"
         "• Requires a full clean Windows reinstallation.\n"
-        "• Ideal for permanent hardware ID resets."
+        "• Ideal for permanent hardware ID resets.\n"
+        "• Works for **Valorant** (Vanguard)."
     ), inline=False)
     embed.add_field(name="Temporary Spoofer (Temp):", value=(
         "• Hardware changes are temporary for the active session (resets upon system reboot).\n"
         "• Requires reapplying the temporary configuration after each restart.\n"
         "• No clean Windows reinstallation required.\n"
-        "• Ideal for testing or short-session usage."
+        "• Ideal for testing or short-session usage.\n"
+        "• **Does NOT work for Valorant** — use Perm instead."
     ), inline=False)
     embed.set_footer(text="NEXY Team")
     await interaction.response.send_message(embed=embed)
@@ -457,7 +536,7 @@ async def status_cmd(interaction: discord.Interaction):
     if err:
         await interaction.response.send_message(err, ephemeral=True)
         return
-    await interaction.response.send_message(NEXY_AI["detected status"]["response"])
+    await interaction.response.send_message(NEXY_AI["undetected"]["response"])
 
 @bot.tree.command(name="pricing", description="Show Nexy pricing")
 async def pricing_cmd(interaction: discord.Interaction):
@@ -478,7 +557,7 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} commands to guild {GUILD_ID}")
     except Exception as e:
         print(f"❌ Sync error: {e}")
-    print("🔥 Button-driven support active!")
+    print("🔥 Full support active!")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -498,7 +577,7 @@ async def on_message(message: discord.Message):
     user_name = member.display_name
 
     # ============================================================
-    # 1. CASUAL MODE — chat channels, only when mentioned
+    # 1. CASUAL MODE
     # ============================================================
     if is_casual_channel(channel_name):
         if message.content.startswith("!"):
@@ -540,7 +619,7 @@ async def on_message(message: discord.Message):
 
     memory = get_user_memory(member.id)
 
-    # 🛑 Hard gate — no Customer role = ask to claim, do nothing else
+    # 🛑 Hard gate — no Customer role
     if not has_customer_role(member):
         if not memory.get("claim_notice_sent"):
             memory["claim_notice_sent"] = True
@@ -552,13 +631,80 @@ async def on_message(message: discord.Message):
             )
         return
 
-    # First message after becoming Customer — greet by name
+    # First message after becoming Customer — greet
     if not memory.get("greeted"):
         memory["greeted"] = True
         await message.reply(get_greeting(user_name))
         return
 
-    # Manual / AnyDesk
+    # ============================================================
+    # 🎯 SUPPORT APPLICATION — tag Manager
+    # ============================================================
+    if any(w in content for w in ["apply for support", "become support", "support application", "i want to be support", "i want to join staff", "apply for staff", "become staff", "join staff"]):
+        role = guild.get_role(MANAGER_ROLE_ID) if MANAGER_ROLE_ID else None
+        if role:
+            await message.channel.send(
+                f"{role.mention} — {member.mention} wants to apply for **Support / Staff**. Please assist."
+            )
+            await message.reply("📩 A manager has been tagged — please wait for their response. 🙏")
+        else:
+            await message.reply("📩 Please wait — a manager will review your application.")
+        return
+
+    # ============================================================
+    # 🎥 MEDIA REQUEST — reject
+    # ============================================================
+    if any(w in content for w in ["media", "content creator", "youtube", "twitch", "tiktok", "streamer", "free keys for media", "do media"]):
+        await message.reply(
+            "🎥 Thanks for reaching out! We are **not looking for media** at the moment. Please check back later — we'll announce when media applications open up."
+        )
+        return
+
+    # ============================================================
+    # 🖥️ MOTHERBOARD CHECK — ask for msinfo
+    # ============================================================
+    if "motherboard" in content or "mobo" in content or "msinfo" in content or "does it support my" in content:
+        await message.reply(
+            "🖥️ **Motherboard check** — to confirm if Perm Spoofer supports your system:\n\n"
+            "1️⃣ Press **Win + R**, type `msinfo32`, hit Enter\n"
+            "2️⃣ Look for **BaseBoard Manufacturer** and **BaseBoard Product**\n"
+            "3️⃣ Send a screenshot here (or type the values)\n\n"
+            "I'll confirm whether your motherboard is supported. 💜"
+        )
+        return
+
+    # ============================================================
+    # 🛡️ VALORANT — Perm vs Temp
+    # ============================================================
+    if "valorant" in content or "val" in content or "vanguard" in content:
+        if "temp" in content or "temporary" in content:
+            await message.reply(
+                "❌ **Temp Spoofer does NOT work for Valorant** — Vanguard blocks memory-only spoofs.\n\n"
+                "✅ **I recommend Perm Spoofer** — it's the only one that works against Vanguard. It also includes a permanent TPM spoof (needed for VAL).\n\n"
+                "⚠️ Note: a **RAID reinstall** is required for Vanguard spoofing.\n\n"
+                "💡 Want me to explain the Perm Spoofer setup or open a ticket for staff?"
+            )
+            return
+        elif "perm" in content or "permanent" in content:
+            await message.reply(
+                "✅ **Yes — Perm Spoofer works for Valorant.**\n\n"
+                "It includes:\n• Permanent TPM Spoofing (VAL, COD, BF6)\n• Vanguard bypass\n• Permanent MAC spoof\n\n"
+                "⚠️ A **RAID reinstall** is required for Vanguard spoofing. You also need a USB drive (minimum 8GB).\n\n"
+                "💡 Recommended for any Valorant HWID ban."
+            )
+            return
+        else:
+            await message.reply(
+                "💀 **Valorant (Vanguard)**\n\n"
+                "• **Perm Spoofer** — ✅ Works (recommended)\n"
+                "• **Temp Spoofer** — ❌ Does NOT work\n\n"
+                "For Valorant, always use **Perm Spoofer**. It's the only one that survives Vanguard's checks."
+            )
+            return
+
+    # ============================================================
+    # 📖 MANUAL / AnyDesk
+    # ============================================================
     if "manual" in content or "anydesk" in content:
         embed = discord.Embed(
             title="📖 AnyDesk Manual — Nexy",
@@ -570,35 +716,39 @@ async def on_message(message: discord.Message):
             ),
             color=0x8B5CF6
         )
-        view = SupportView(member.id, channel_id)
-        await message.reply(embed=embed, view=view)
+        await message.reply(embed=embed)
         return
 
-    # Temp vs Perm
-    if "temp" in content and "perm" in content and ("difference" in content or "vs" in content):
+    # ============================================================
+    # ⚔️ TEMP vs PERM
+    # ============================================================
+    if ("temp" in content and "perm" in content) and ("difference" in content or "vs" in content or "which" in content):
         embed = discord.Embed(title="Difference Between Temp & Perm Spoofer", color=0x8B5CF6)
         embed.add_field(name="Permanent Spoofer (Perm):", value=(
             "• Permanently alters hardware identifiers (serials).\n"
             "• Identifiers remain persistent across system reboots.\n"
             "• Requires a full clean Windows reinstallation.\n"
-            "• Ideal for permanent hardware ID resets."
+            "• Ideal for permanent hardware ID resets.\n"
+            "• ✅ Works for **Valorant** (Vanguard)."
         ), inline=False)
         embed.add_field(name="Temporary Spoofer (Temp):", value=(
-            "• Hardware changes are temporary for the active session (resets upon system reboot).\n"
-            "• Requires reapplying the temporary configuration after each restart.\n"
-            "• No clean Windows reinstallation required.\n"
-            "• Ideal for testing or short-session usage."
+            "• Hardware changes are temporary (resets on reboot).\n"
+            "• No clean Windows reinstall required.\n"
+            "• ✅ Works on **all motherboards**.\n"
+            "• ✅ Works for Fortnite, R6, Rust, Apex.\n"
+            "• ❌ Does NOT work for **Valorant**."
         ), inline=False)
         embed.set_footer(text="NEXY Team")
-        view = SupportView(member.id, channel_id)
-        await message.reply(embed=embed, view=view)
+        await message.reply(embed=embed)
         return
 
-    # Guide shortcuts
+    # ============================================================
+    # 📘 Perm Spoofer (typed)
+    # ============================================================
     if "perm spoofer" in content or "perm guide" in content:
         embed = discord.Embed(
-            title="📘 NEXY PERMANENT GUIDE",
-            description="Access the official Nexy Permanent Spoofer guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-perm-guide**",
+            title="📘 NEXY PERMANENT SPOOFER",
+            description=PERM_SPOOFER,
             color=0x8B5CF6
         )
         view = ui.View()
@@ -606,10 +756,13 @@ async def on_message(message: discord.Message):
         await message.reply(embed=embed, view=view)
         return
 
+    # ============================================================
+    # 📗 Temp Spoofer (typed)
+    # ============================================================
     if "temp spoofer" in content or "temp guide" in content:
         embed = discord.Embed(
-            title="📗 NEXY TEMPORARY GUIDE",
-            description="Access the official Nexy Temporary Spoofer guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs**",
+            title="📗 NEXY TEMPORARY SPOOFER",
+            description=TEMP_SPOOFER,
             color=0x8B5CF6
         )
         view = ui.View()
@@ -617,23 +770,26 @@ async def on_message(message: discord.Message):
         await message.reply(embed=embed, view=view)
         return
 
-    if "cheat setup" in content or "setup guide" in content or "cheat guide" in content:
+    # ============================================================
+    # 🎮 Fortnite cheat (typed)
+    # ============================================================
+    if "fortnite cheat" in content or "fn cheat" in content or "cheat for fortnite" in content:
         embed = discord.Embed(
-            title="📙 NEXY CHEAT SETUP GUIDE",
-            description="Access the official Nexy Cheat Setup guide below:\n\n🔗 **https://nexy-temp-guide.gitbook.io/nexy-cheat-guide**",
+            title="🎮 FORTNITE CHEAT — Full Feature List",
+            description=FORTNITE_CHEAT,
             color=0x8B5CF6
         )
-        view = ui.View()
-        view.add_item(ui.Button(label="Open Cheat Setup Guide", url="https://nexy-temp-guide.gitbook.io/nexy-cheat-guide", emoji="📙"))
-        await message.reply(embed=embed, view=view)
+        await message.reply(embed=embed)
         return
 
-    # "help" → just answer + buttons
+    # ============================================================
+    # 🎙️ "help / support" — answer + buttons
+    # ============================================================
     if any(w in content for w in ["help", "need help", "support", "human", "i need support"]):
         view = SupportView(member.id, channel_id)
         await message.reply(
-            f"Gotcha {user_name} — tell me what's happening and I'll help you out.\n\n"
-            f"If it's something only a human can fix, tap the **🆘** button. If your issue is solved, tap **✅ Issue Resolved**.",
+            f"Gotcha {user_name} — what's your question? Tell me what's happening and I'll help you out.\n\n"
+            f"If it's something only a human can fix, tap **🆘**. If your issue is solved, tap **✅ Issue Resolved**.",
             view=view
         )
         if channel_id in closing_timers:
@@ -666,7 +822,7 @@ async def on_message(message: discord.Message):
             reset_close_timer(channel_id, guild.id)
         return
 
-    # Product / pricing questions
+    # Product / pricing
     if any(w in content for w in ["product", "catalog", "offer", "cheat", "spoofer", "price", "cost", "€"]):
         view = SupportView(member.id, channel_id)
         await message.reply(NEXY_CATALOG, view=view)
@@ -677,8 +833,8 @@ async def on_message(message: discord.Message):
     # Fallback
     view = SupportView(member.id, channel_id)
     await message.reply(
-        f"What can I help you with, {user_name}?\n\n"
-        f"You can ask me about:\n• Products & Pricing\n• Ban help\n• Spoofers (temp vs perm)\n• Why Nexy\n• AnyDesk manual service\n\n"
+        f"What's your question, {user_name}? Tell me what you need help with and I'll guide you.\n\n"
+        f"Common topics:\n• Products & Pricing\n• Ban help\n• Perm vs Temp Spoofer\n• Valorant spoofing\n• Motherboard compatibility\n• AnyDesk manual service\n\n"
         f"Or tap a button below:",
         view=view
     )
