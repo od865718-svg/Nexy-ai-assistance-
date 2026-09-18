@@ -13,8 +13,8 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 BOT_NAME = "Nexy AI Assistant"
 GUILD_ID = int(os.getenv("GUILD_ID", "1547715438396444742"))
+MANAGER_ROLE_ID = 1547715438438256751
 CUSTOMER_ROLE_ID = int(os.getenv("CUSTOMER_ROLE_ID", "0")) or None
-MANAGER_ROLE_ID = int(os.getenv("MANAGER_ROLE_ID", "0")) or None
 
 HUMAN_SUPPORT_ROLE_ID = 1547715438438256751
 REVIEW_CHANNEL_ID = 1547715439700746265
@@ -37,6 +37,9 @@ def has_customer_role(member: discord.Member) -> bool:
     if not CUSTOMER_ROLE_ID:
         return False
     return any(r.id == CUSTOMER_ROLE_ID for r in member.roles)
+
+def is_manager(member: discord.Member) -> bool:
+    return any(r.id == MANAGER_ROLE_ID for r in member.roles)
 
 # ==================== STATE ====================
 closing_timers = {}
@@ -433,6 +436,9 @@ def customer_check(interaction: discord.Interaction):
 
 @bot.tree.command(name="permguide", description="Get the Nexy Permanent Spoofer guide")
 async def permguide_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -449,6 +455,9 @@ async def permguide_cmd(interaction: discord.Interaction):
 
 @bot.tree.command(name="tempguide", description="Get the Nexy Temporary Spoofer guide")
 async def tempguide_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -465,6 +474,9 @@ async def tempguide_cmd(interaction: discord.Interaction):
 
 @bot.tree.command(name="cheatsetup", description="Get the Nexy Cheat Setup guide")
 async def cheatsetup_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -481,6 +493,9 @@ async def cheatsetup_cmd(interaction: discord.Interaction):
 
 @bot.tree.command(name="manual", description="Hire a staff member to do the Perm Guide via AnyDesk")
 async def manual_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -500,6 +515,9 @@ async def manual_cmd(interaction: discord.Interaction):
 
 @bot.tree.command(name="tempvsperm", description="Difference between Temp & Perm Spoofer")
 async def tempvsperm_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -524,6 +542,9 @@ async def tempvsperm_cmd(interaction: discord.Interaction):
 
 @bot.tree.command(name="cheats", description="Browse Nexy product catalog")
 async def cheats_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -532,6 +553,9 @@ async def cheats_cmd(interaction: discord.Interaction):
 
 @bot.tree.command(name="status", description="Check product status")
 async def status_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -540,6 +564,9 @@ async def status_cmd(interaction: discord.Interaction):
 
 @bot.tree.command(name="pricing", description="Show Nexy pricing")
 async def pricing_cmd(interaction: discord.Interaction):
+    if not is_manager(interaction.user):
+        await interaction.response.send_message("❌ Only managers can use this command.", ephemeral=True)
+        return
     err = customer_check(interaction)
     if err:
         await interaction.response.send_message(err, ephemeral=True)
@@ -635,165 +662,6 @@ async def on_message(message: discord.Message):
     if not memory.get("greeted"):
         memory["greeted"] = True
         await message.reply(get_greeting(user_name))
-        return
-
-    # ============================================================
-    # 🎯 SUPPORT APPLICATION — tag Manager
-    # ============================================================
-    if any(w in content for w in ["apply for support", "become support", "support application", "i want to be support", "i want to join staff", "apply for staff", "become staff", "join staff"]):
-        role = guild.get_role(MANAGER_ROLE_ID) if MANAGER_ROLE_ID else None
-        if role:
-            await message.channel.send(
-                f"{role.mention} — {member.mention} wants to apply for **Support / Staff**. Please assist."
-            )
-            await message.reply("📩 A manager has been tagged — please wait for their response. 🙏")
-        else:
-            await message.reply("📩 Please wait — a manager will review your application.")
-        return
-
-    # ============================================================
-    # 🎥 MEDIA REQUEST — reject
-    # ============================================================
-    if any(w in content for w in ["media", "content creator", "youtube", "twitch", "tiktok", "streamer", "free keys for media", "do media"]):
-        await message.reply(
-            "🎥 Thanks for reaching out! We are **not looking for media** at the moment. Please check back later — we'll announce when media applications open up."
-        )
-        return
-
-    # ============================================================
-    # 🖥️ MOTHERBOARD CHECK — ask for msinfo
-    # ============================================================
-    if "motherboard" in content or "mobo" in content or "msinfo" in content or "does it support my" in content:
-        await message.reply(
-            "🖥️ **Motherboard check** — to confirm if Perm Spoofer supports your system:\n\n"
-            "1️⃣ Press **Win + R**, type `msinfo32`, hit Enter\n"
-            "2️⃣ Look for **BaseBoard Manufacturer** and **BaseBoard Product**\n"
-            "3️⃣ Send a screenshot here (or type the values)\n\n"
-            "I'll confirm whether your motherboard is supported. 💜"
-        )
-        return
-
-    # ============================================================
-    # 🛡️ VALORANT — Perm vs Temp
-    # ============================================================
-    if "valorant" in content or "val" in content or "vanguard" in content:
-        if "temp" in content or "temporary" in content:
-            await message.reply(
-                "❌ **Temp Spoofer does NOT work for Valorant** — Vanguard blocks memory-only spoofs.\n\n"
-                "✅ **I recommend Perm Spoofer** — it's the only one that works against Vanguard. It also includes a permanent TPM spoof (needed for VAL).\n\n"
-                "⚠️ Note: a **RAID reinstall** is required for Vanguard spoofing.\n\n"
-                "💡 Want me to explain the Perm Spoofer setup or open a ticket for staff?"
-            )
-            return
-        elif "perm" in content or "permanent" in content:
-            await message.reply(
-                "✅ **Yes — Perm Spoofer works for Valorant.**\n\n"
-                "It includes:\n• Permanent TPM Spoofing (VAL, COD, BF6)\n• Vanguard bypass\n• Permanent MAC spoof\n\n"
-                "⚠️ A **RAID reinstall** is required for Vanguard spoofing. You also need a USB drive (minimum 8GB).\n\n"
-                "💡 Recommended for any Valorant HWID ban."
-            )
-            return
-        else:
-            await message.reply(
-                "💀 **Valorant (Vanguard)**\n\n"
-                "• **Perm Spoofer** — ✅ Works (recommended)\n"
-                "• **Temp Spoofer** — ❌ Does NOT work\n\n"
-                "For Valorant, always use **Perm Spoofer**. It's the only one that survives Vanguard's checks."
-            )
-            return
-
-    # ============================================================
-    # 📖 MANUAL / AnyDesk
-    # ============================================================
-    if "manual" in content or "anydesk" in content:
-        embed = discord.Embed(
-            title="📖 AnyDesk Manual — Nexy",
-            description=(
-                "💰 **Perm Guide Assistance**\n"
-                "For **€20** you can hire a Staff member (NOT Trial Staff) to perform the Perm Guide for you via **AnyDesk**.\n\n"
-                "⚠️ **Note**\n"
-                "This is different from the ASUS Manual."
-            ),
-            color=0x8B5CF6
-        )
-        await message.reply(embed=embed)
-        return
-
-    # ============================================================
-    # ⚔️ TEMP vs PERM
-    # ============================================================
-    if ("temp" in content and "perm" in content) and ("difference" in content or "vs" in content or "which" in content):
-        embed = discord.Embed(title="Difference Between Temp & Perm Spoofer", color=0x8B5CF6)
-        embed.add_field(name="Permanent Spoofer (Perm):", value=(
-            "• Permanently alters hardware identifiers (serials).\n"
-            "• Identifiers remain persistent across system reboots.\n"
-            "• Requires a full clean Windows reinstallation.\n"
-            "• Ideal for permanent hardware ID resets.\n"
-            "• ✅ Works for **Valorant** (Vanguard)."
-        ), inline=False)
-        embed.add_field(name="Temporary Spoofer (Temp):", value=(
-            "• Hardware changes are temporary (resets on reboot).\n"
-            "• No clean Windows reinstall required.\n"
-            "• ✅ Works on **all motherboards**.\n"
-            "• ✅ Works for Fortnite, R6, Rust, Apex.\n"
-            "• ❌ Does NOT work for **Valorant**."
-        ), inline=False)
-        embed.set_footer(text="NEXY Team")
-        await message.reply(embed=embed)
-        return
-
-    # ============================================================
-    # 📘 Perm Spoofer (typed)
-    # ============================================================
-    if "perm spoofer" in content or "perm guide" in content:
-        embed = discord.Embed(
-            title="📘 NEXY PERMANENT SPOOFER",
-            description=PERM_SPOOFER,
-            color=0x8B5CF6
-        )
-        view = ui.View()
-        view.add_item(ui.Button(label="Open Permanent Guide", url="https://nexy-temp-guide.gitbook.io/nexy-perm-guide", emoji="📘"))
-        await message.reply(embed=embed, view=view)
-        return
-
-    # ============================================================
-    # 📗 Temp Spoofer (typed)
-    # ============================================================
-    if "temp spoofer" in content or "temp guide" in content:
-        embed = discord.Embed(
-            title="📗 NEXY TEMPORARY SPOOFER",
-            description=TEMP_SPOOFER,
-            color=0x8B5CF6
-        )
-        view = ui.View()
-        view.add_item(ui.Button(label="Open Temporary Guide", url="https://nexy-temp-guide.gitbook.io/nexy-temp-guide-docs", emoji="📗"))
-        await message.reply(embed=embed, view=view)
-        return
-
-    # ============================================================
-    # 🎮 Fortnite cheat (typed)
-    # ============================================================
-    if "fortnite cheat" in content or "fn cheat" in content or "cheat for fortnite" in content:
-        embed = discord.Embed(
-            title="🎮 FORTNITE CHEAT — Full Feature List",
-            description=FORTNITE_CHEAT,
-            color=0x8B5CF6
-        )
-        await message.reply(embed=embed)
-        return
-
-    # ============================================================
-    # 🎙️ "help / support" — answer + buttons
-    # ============================================================
-    if any(w in content for w in ["help", "need help", "support", "human", "i need support"]):
-        view = SupportView(member.id, channel_id)
-        await message.reply(
-            f"Gotcha {user_name} — what's your question? Tell me what's happening and I'll help you out.\n\n"
-            f"If it's something only a human can fix, tap **🆘**. If your issue is solved, tap **✅ Issue Resolved**.",
-            view=view
-        )
-        if channel_id in closing_timers:
-            reset_close_timer(channel_id, guild.id)
         return
 
     # General AI response
